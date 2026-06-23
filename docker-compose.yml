@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  hotwheels-monitor:
+    build: .
+    container_name: hotwheels-monitor
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID_1=${TELEGRAM_CHAT_ID_1}
+      - TELEGRAM_CHAT_ID_2=${TELEGRAM_CHAT_ID_2}
+      - HOTWHEELS_URL=${HOTWHEELS_URL}
+      - CHECK_INTERVAL=${CHECK_INTERVAL}
+      - DB_PATH=${DB_PATH}
+      - LOG_LEVEL=${LOG_LEVEL}
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    restart: always
+    networks:
+      - hotwheels
+
+networks:
+  hotwheels:
+    driver: bridge
