@@ -8,17 +8,18 @@ from datetime import datetime
 from dotenv import load_dotenv
 import asyncio
 
+# Загружаем переменные окружения
+load_dotenv('.env')
+
 from scraper import HotWheelsScraper
 from telegram_notifier import TelegramNotifier
 from database import Database
-
-load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/monitor.log'),
+        logging.FileHandler('logs/monitor.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -30,20 +31,20 @@ class HotWheelsMonitor:
         self.notifier = TelegramNotifier()
         self.db = Database()
         self.db.init_database()
-        logger.info("✅ Hot Wheels Monitor инициализирован")
+        logger.info("Hot Wheels Monitor initialized")
 
     async def check_for_updates(self):
         """Проверка обновлений на сайте"""
         try:
-            logger.info(f"🔍 Проверка обновлений... [{datetime.now().strftime('%H:%M:%S')}]")
+            logger.info(f"Checking for updates... [{datetime.now().strftime('%H:%M:%S')}]")
             
             current_products = await self.scraper.fetch_products()
             
             if not current_products:
-                logger.warning("⚠️ Не удалось получить товары с сайта")
+                logger.warning("Could not get products from site")
                 return
             
-            logger.info(f"📦 Найдено товаров: {len(current_products)}")
+            logger.info(f"Found products: {len(current_products)}")
             
             previous_products = self.db.get_all_products()
             previous_ids = {p['product_id'] for p in previous_products}
@@ -51,15 +52,15 @@ class HotWheelsMonitor:
             
             new_products = [p for p in current_products if p['product_id'] not in previous_ids]
             if new_products:
-                logger.info(f"🆕 Найдено новых товаров: {len(new_products)}")
+                logger.info(f"Found new products: {len(new_products)}")
                 for product in new_products:
                     self.db.add_product(product)
                     await self.notifier.send_notification(
-                        f"🆕 НОВЫЙ ТОВАР!\n\n"
-                        f"Название: {product['name']}\n"
-                        f"Цена: {product['price']}\n"
-                        f"Статус: {product['status']}\n"
-                        f"Ссылка: {product['url']}",
+                        f"NEW PRODUCT!\n\n"
+                        f"Name: {product['name']}\n"
+                        f"Price: {product['price']}\n"
+                        f"Status: {product['status']}\n"
+                        f"Link: {product['url']}",
                         product_type="new"
                     )
             
@@ -72,52 +73,52 @@ class HotWheelsMonitor:
                     
                     if previous_product:
                         if float(previous_product['price']) != float(current_product['price']):
-                            logger.info(f"💰 Изменение цены: {current_product['name']}")
+                            logger.info(f"Price changed: {current_product['name']}")
                             await self.notifier.send_notification(
-                                f"💰 ИЗМЕНЕНИЕ ЦЕНЫ!\n\n"
-                                f"Товар: {current_product['name']}\n"
-                                f"Старая цена: {previous_product['price']}\n"
-                                f"Новая цена: {current_product['price']}\n"
-                                f"Ссылка: {current_product['url']}",
+                                f"PRICE CHANGED!\n\n"
+                                f"Product: {current_product['name']}\n"
+                                f"Old price: {previous_product['price']}\n"
+                                f"New price: {current_product['price']}\n"
+                                f"Link: {current_product['url']}",
                                 product_type="price_change"
                             )
                         
                         if previous_product['status'] != current_product['status']:
                             if previous_product['status'] == "Sold Out" and current_product['status'] == "In Stock":
-                                logger.info(f"📈 Товар вернулся в наличие: {current_product['name']}")
+                                logger.info(f"Product back in stock: {current_product['name']}")
                                 await self.notifier.send_notification(
-                                    f"📈 ТОВАР ВЕРНУЛСЯ В НАЛИЧИЕ!\n\n"
-                                    f"Товар: {current_product['name']}\n"
-                                    f"Цена: {current_product['price']}\n"
-                                    f"Ссылка: {current_product['url']}",
+                                    f"PRODUCT BACK IN STOCK!\n\n"
+                                    f"Product: {current_product['name']}\n"
+                                    f"Price: {current_product['price']}\n"
+                                    f"Link: {current_product['url']}",
                                     product_type="status_change"
                                 )
                         
                         self.db.update_product(current_product)
             
-            logger.info("✅ Проверка завершена")
+            logger.info("Check completed")
             
         except Exception as e:
-            logger.error(f"❌ Ошибка при проверке обновлений: {str(e)}")
+            logger.error(f"Error during check: {str(e)}")
             await self.notifier.send_notification(
-                f"❌ ОШИБКА В МОНИТОРЕ!\n\nОшибка: {str(e)}",
+                f"ERROR IN MONITOR!\n\nError: {str(e)}",
                 product_type="error"
             )
 
     async def run(self):
         """Запуск мониторинга"""
         check_interval = int(os.getenv('CHECK_INTERVAL', 60))
-        logger.info(f"⏰ Интервал проверки: {check_interval} секунд")
+        logger.info(f"Check interval: {check_interval} seconds")
         
         try:
             while True:
                 await self.check_for_updates()
-                logger.info(f"⏳ Следующая проверка через {check_interval} сек...")
+                logger.info(f"Next check in {check_interval} sec...")
                 await asyncio.sleep(check_interval)
         except KeyboardInterrupt:
-            logger.info("🛑 Мониторинг остановлен")
+            logger.info("Monitoring stopped")
         except Exception as e:
-            logger.error(f"❌ Критическая ошибка: {str(e)}")
+            logger.error(f"Critical error: {str(e)}")
 
 if __name__ == "__main__":
     os.makedirs('logs', exist_ok=True)
@@ -127,5 +128,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(monitor.run())
     except Exception as e:
-        logger.error(f"Не удалось запустить монитор: {str(e)}")
+        logger.error(f"Failed to start monitor: {str(e)}")
         sys.exit(1)
